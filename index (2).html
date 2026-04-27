@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Funda Guesser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #f7a600;
+      --orange-dark: #d98f00;
+      --orange-light: #fff4d6;
+      --blue: #0071b3;
+      --blue-dark: #005a8e;
+      --blue-light: #e8f4fb;
+      --green: #22c55e;
+      --green-light: #dcfce7;
+      --red: #ef4444;
+      --red-light: #fee2e2;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-900: #111827;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
+      --radius: 16px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--gray-50);
+      color: var(--gray-900);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      background: var(--blue);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,113,179,0.25);
+    }
+    .header-logo {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.5px;
+    }
+    .logo-dot { color: var(--orange); }
+    .header-sub {
+      font-size: 0.72rem;
+      font-weight: 300;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.75;
+    }
+    .header-streak {
+      background: var(--orange);
+      color: white;
+      font-weight: 700;
+      font-size: 0.8rem;
+      padding: 4px 12px;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── PROGRESS BAR ───────────────────────────────────── */
+    .progress-section {
+      background: white;
+      border-bottom: 1px solid var(--gray-200);
+      padding: 12px 20px 10px;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .progress-label span:first-child {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
+    .progress-label span:last-child {
+      font-size: 0.78rem;
+      color: var(--gray-400);
+      font-weight: 300;
+    }
+    .progress-track {
+      height: 6px;
+      background: var(--gray-100);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--orange), var(--orange-dark));
+      border-radius: 99px;
+      transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .progress-dots {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .progress-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: var(--gray-200);
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    .progress-dot.correct { background: var(--green); }
+    .progress-dot.wrong   { background: var(--red); }
+    .progress-dot.current { background: var(--orange); animation: pulse-dot 1.4s infinite; }
+
+    @keyframes pulse-dot {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ── MAIN CARD ──────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 20px 16px 80px;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .house-card {
+      background: white;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+      animation: slide-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(24px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .house-image-wrap {
+      position: relative;
+      aspect-ratio: 16/9;
+      background: var(--gray-100);
+      overflow: hidden;
+    }
+    .house-image-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .image-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--blue-light), var(--orange-light));
+      font-size: 3rem;
+    }
+    .house-number-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.05em;
+    }
+
+    .house-details {
+      padding: 20px;
+    }
+    .house-city {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--gray-900);
+      margin-bottom: 14px;
+      line-height: 1.1;
+    }
+    .house-specs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .spec-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--gray-600);
+    }
+    .spec-chip .icon { font-size: 0.95rem; }
+    .energy-chip {
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+    .energy-A\+\+, .energy-A\+, .energy-A { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .energy-B { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .energy-C { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+    .energy-D { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+    .energy-E, .energy-F, .energy-G { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+    /* ── GUESS FORM ──────────────────────────────────────── */
+    .guess-section {
+      margin-top: 20px;
+      background: white;
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .guess-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+    .guess-input-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .guess-prefix {
+      display: flex;
+      align-items: center;
+      background: var(--orange-light);
+      border: 2px solid var(--orange);
+      border-right: none;
+      padding: 0 14px;
+      border-radius: var(--radius) 0 0 var(--radius);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--orange-dark);
+    }
+    .guess-input {
+      flex: 1;
+      border: 2px solid var(--orange);
+      border-left: none;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 14px 16px;
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--gray-900);
+      outline: none;
+      transition: border-color 0.2s;
+      -moz-appearance: textfield;
+      min-width: 0;
+    }
+    .guess-input::-webkit-outer-spin-button,
+    .guess-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .guess-input:focus {
+      border-color: var(--orange-dark);
+      box-shadow: 0 0 0 3px rgba(247,166,0,0.15);
+    }
+    .guess-input::placeholder { color: var(--gray-400); font-family: var(--font-body); font-weight: 300; font-size: 1rem; }
+
+
+
+    .submit-btn {
+      width: 100%;
+      margin-top: 14px;
+      padding: 15px;
+      background: var(--orange);
+      border: none;
+      border-radius: var(--radius);
+      color: white;
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .submit-btn:hover:not(:disabled) { background: var(--orange-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(247,166,0,0.35); }
+    .submit-btn:active:not(:disabled) { transform: translateY(0); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── FEEDBACK ─────────────────────────────────────────── */
+    .feedback-card {
+      margin-top: 16px;
+      padding: 18px 20px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes pop-in {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .feedback-card.correct { background: var(--green-light); border: 2px solid var(--green); }
+    .feedback-card.wrong   { background: var(--red-light);   border: 2px solid var(--red); }
+
+    .feedback-icon { font-size: 1.8rem; line-height: 1; flex-shrink: 0; }
+    .feedback-title { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .feedback-card.correct .feedback-title { color: #15803d; }
+    .feedback-card.wrong   .feedback-title { color: #991b1b; }
+    .feedback-detail { font-size: 0.85rem; color: var(--gray-600); line-height: 1.4; }
+    .actual-price {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 900;
+      display: block;
+      margin-top: 4px;
+    }
+    .feedback-card.correct .actual-price { color: #15803d; }
+    .feedback-card.wrong   .actual-price { color: #991b1b; }
+
+    .next-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 13px;
+      background: var(--blue);
+      border: none;
+      border-radius: var(--radius);
+      color: white;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+    .next-btn:hover { background: var(--blue-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,113,179,0.3); }
+
+    /* ── LOADING ─────────────────────────────────────────── */
+    .loading-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid var(--orange-light);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; color: var(--gray-900); }
+    .loading-sub { font-size: 0.85rem; color: var(--gray-400); }
+
+    /* ── SUMMARY SCREEN ──────────────────────────────────── */
+    .summary-screen {
+      background: white;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      animation: slide-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .summary-header {
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      padding: 32px 24px 28px;
+      text-align: center;
+      color: white;
+    }
+    .summary-trophy { font-size: 3.5rem; margin-bottom: 12px; }
+    .summary-title {
+      font-family: var(--font-display);
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+    .summary-date { font-size: 0.82rem; opacity: 0.65; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .stat-box {
+      background: white;
+      padding: 18px 12px;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 900;
+      display: block;
+    }
+    .stat-num.green { color: var(--green); }
+    .stat-num.red { color: var(--red); }
+    .stat-num.orange { color: var(--orange); }
+    .stat-label { font-size: 0.72rem; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; }
+
+    .summary-grid {
+      padding: 20px;
+    }
+    .summary-grid-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .emoji-row {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      font-size: 1.5rem;
+    }
+    .emoji-item { transition: transform 0.2s; }
+    .emoji-item:hover { transform: scale(1.3); }
+
+    .share-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: calc(100% - 40px);
+      margin: 16px 20px;
+      padding: 14px;
+      background: var(--orange);
+      border: none;
+      border-radius: var(--radius);
+      color: white;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .share-btn:hover { background: var(--orange-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(247,166,0,0.35); }
+
+    .share-copied {
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--green);
+      font-weight: 700;
+      padding-bottom: 8px;
+      animation: pop-in 0.3s ease;
+    }
+
+    .summary-next {
+      text-align: center;
+      padding: 12px 20px 24px;
+      font-size: 0.82rem;
+      color: var(--gray-400);
+    }
+    .countdown { font-weight: 700; color: var(--blue); }
+
+    /* ── ERROR ───────────────────────────────────────────── */
+    .error-screen {
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .error-emoji { font-size: 3rem; margin-bottom: 12px; }
+    .error-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: var(--red); }
+    .error-detail { font-size: 0.85rem; color: var(--gray-400); line-height: 1.5; }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .house-city { font-size: 1.3rem; }
+      .summary-title { font-size: 1.4rem; }
+      .stat-num { font-size: 1.6rem; }
+      .emoji-row { font-size: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="header-logo">Funda<span class="logo-dot">.</span>Guesser</div>
+      <div class="header-sub">Raad de huizenprijs</div>
+    </div>
+    <div class="header-streak" id="streakBadge" style="display:none">🔥 <span id="streakNum">0</span></div>
+  </header>
+
+  <!-- PROGRESS BAR (shown when game is active) -->
+  <div class="progress-section" id="progressSection" style="display:none">
+    <div class="progress-label">
+      <span id="progressText">Huis 1 van 15</span>
+      <span id="scoreText">0 goed</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="progress-dots" id="progressDots"></div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <main id="app">
+    <!-- Injected by JS -->
+  </main>
+
+  <script>
+  (function() {
+    'use strict';
+
+    // ── CONSTANTS ──────────────────────────────────────────
+    const DATA_URL   = './daily_houses.json';
+    const LS_KEY     = 'funda-guesser-v1';
+    const MARGIN     = 0.10; // 10% = correct
+    const TODAY      = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // ── STATE ──────────────────────────────────────────────
+    let houses = [];
+    let state  = null;   // { date, currentIndex, results: [] }
+
+    // ── INIT ───────────────────────────────────────────────
+    async function init() {
+      renderLoading();
+      try {
+        const res  = await fetch(DATA_URL + '?v=' + TODAY);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        houses = await res.json();
+        if (!Array.isArray(houses) || houses.length === 0) throw new Error('No houses');
+      } catch (e) {
+        renderError(e.message);
+        return;
+      }
+      loadState();
+      renderAll();
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.date === TODAY) { state = parsed; return; }
+        }
+      } catch (_) {}
+      // Fresh state for today
+      state = { date: TODAY, currentIndex: 0, results: [] };
+      saveState();
+    }
+
+    function saveState() {
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+    }
+
+    function getStreak() {
+      try {
+        const raw = localStorage.getItem('funda-streak-v1');
+        return raw ? JSON.parse(raw) : { count: 0, lastDate: null };
+      } catch (_) { return { count: 0, lastDate: null }; }
+    }
+
+    function updateStreak(won) {
+      const s = getStreak();
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      if (s.lastDate === yesterday) { s.count = won ? s.count + 1 : 1; }
+      else if (s.lastDate !== TODAY) { s.count = won ? 1 : 0; }
+      s.lastDate = TODAY;
+      try { localStorage.setItem('funda-streak-v1', JSON.stringify(s)); } catch (_) {}
+      return s.count;
+    }
+
+    // ── RENDER HELPERS ─────────────────────────────────────
+    function fmt(n) {
+      return '€\u202f' + Number(n).toLocaleString('nl-NL');
+    }
+
+    function pct(guess, actual) {
+      return Math.abs(guess - actual) / actual;
+    }
+
+    function isCorrect(guess, actual) {
+      return pct(guess, actual) <= MARGIN;
+    }
+
+    // ── MAIN RENDER ────────────────────────────────────────
+    function renderAll() {
+      const done = state.results.length;
+      const total = houses.length;
+
+      updateProgressUI(done, total);
+
+      if (done >= total) {
+        renderSummary();
+        return;
+      }
+      renderHouse(state.currentIndex);
+    }
+
+    function updateProgressUI(done, total) {
+      const pct = Math.round((done / total) * 100);
+      document.getElementById('progressSection').style.display = 'block';
+      document.getElementById('progressText').textContent =
+        `Huis ${done + 1 > total ? total : done + 1} van ${total}`;
+      document.getElementById('scoreText').textContent =
+        `${state.results.filter(r => r.correct).length} goed`;
+      document.getElementById('progressFill').style.width = pct + '%';
+
+      const dots = document.getElementById('progressDots');
+      dots.innerHTML = '';
+      for (let i = 0; i < total; i++) {
+        const d = document.createElement('div');
+        d.className = 'progress-dot';
+        if (i < done) {
+          d.className += state.results[i].correct ? ' correct' : ' wrong';
+          d.textContent = state.results[i].correct ? '✓' : '✗';
+        } else if (i === done) {
+          d.className += ' current';
+        }
+        dots.appendChild(d);
+      }
+
+      // Streak badge
+      const s = getStreak();
+      if (s.count > 1) {
+        document.getElementById('streakBadge').style.display = 'flex';
+        document.getElementById('streakNum').textContent = s.count;
+      }
+    }
+
+    function renderHouse(index) {
+      const h = houses[index];
+      const app = document.getElementById('app');
+
+      // Build energy chip class (handle A++, A+)
+      const eClass = 'energy-chip energy-' + h.energy_label.replace(/\+/g, '\\+');
+
+      app.innerHTML = `
+        <div class="house-card">
+          <div class="house-image-wrap">
+            ${h.image
+              ? `<img src="${escHtml(h.image)}" alt="House in ${escHtml(h.city)}"
+                   onerror="this.parentNode.innerHTML='<div class=\\'image-placeholder\\'>🏠</div>'" />`
+              : '<div class="image-placeholder">🏠</div>'
+            }
+            <div class="house-number-badge">🏠 ${index + 1} / ${houses.length}</div>
+          </div>
+          <div class="house-details">
+            <div class="house-city">${escHtml(h.city)}</div>
+            <div class="house-specs">
+              ${h.m2 ? `<div class="spec-chip"><span class="icon">📐</span>${h.m2} m²</div>` : ''}
+              ${h.bedrooms ? `<div class="spec-chip"><span class="icon">🛏</span>${h.bedrooms} slaapkamers</div>` : ''}
+              ${h.energy_label ? `<div class="${eClass}">⚡ ${escHtml(h.energy_label)}</div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="guess-section">
+          <div class="guess-label">Jouw schatting</div>
+          <div class="guess-input-row">
+            <div class="guess-prefix">€</div>
+            <input type="number" id="guessInput" class="guess-input"
+                   placeholder="bijv. 350000" min="0" max="10000000" step="1000"
+                   inputmode="numeric" autocomplete="off" />
+          </div>
+          <button class="submit-btn" id="submitBtn" onclick="window._submitGuess()">
+            🎯 Indienen
+          </button>
+        </div>
+
+        <div id="feedbackArea"></div>
+      `;
+
+      // Enter key shortcut
+      document.getElementById('guessInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') window._submitGuess();
+      });
+
+      document.getElementById('guessInput').focus();
+    }
+
+    window._submitGuess = function() {
+      const inp   = document.getElementById('guessInput');
+      const guess = parseInt(inp.value, 10);
+      if (!guess || guess < 1000) { inp.style.borderColor = 'var(--red)'; return; }
+
+      const h      = houses[state.currentIndex];
+      const ok     = isCorrect(guess, h.price);
+      const diff   = guess - h.price;
+      const offPct = Math.round(Math.abs(diff) / h.price * 100);
+
+      // Record result
+      state.results.push({ index: state.currentIndex, guess, correct: ok, actual: h.price });
+      state.currentIndex++;
+      saveState();
+
+      // Disable submit
+      document.getElementById('submitBtn').disabled = true;
+      inp.disabled = true;
+
+      // Show feedback
+      const fb = document.getElementById('feedbackArea');
+      if (ok) {
+        fb.innerHTML = `
+          <div class="feedback-card correct">
+            <div class="feedback-icon">✅</div>
+            <div>
+              <div class="feedback-title">Uitstekend! Binnen 10%!</div>
+              <span class="actual-price">${fmt(h.price)}</span>
+              <div class="feedback-detail">Jij schatte ${fmt(guess)} — slechts ${offPct}% ernaast</div>
+            </div>
+          </div>`;
+      } else {
+        const dir = diff > 0 ? 'te hoog' : 'te laag';
+        fb.innerHTML = `
+          <div class="feedback-card wrong">
+            <div class="feedback-icon">❌</div>
+            <div>
+              <div class="feedback-title">${offPct}% ${dir}</div>
+              <span class="actual-price">${fmt(h.price)}</span>
+              <div class="feedback-detail">Jij schatte ${fmt(guess)} — ${fmt(Math.abs(diff))} ${dir}</div>
+            </div>
+          </div>`;
+      }
+
+      // Update progress dots immediately
+      updateProgressUI(state.results.length, houses.length);
+
+      const isLast = state.results.length >= houses.length;
+      if (isLast) { updateStreak(true); }
+
+      // Next / Finish button
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'next-btn';
+      nextBtn.textContent = isLast ? '🏁 Bekijk resultaten' : '→ Volgende huis';
+      nextBtn.onclick = renderAll;
+      fb.appendChild(nextBtn);
+    };
+
+    function renderSummary() {
+      document.getElementById('progressSection').style.display = 'none';
+      const app = document.getElementById('app');
+      const correct = state.results.filter(r => r.correct).length;
+      const wrong   = houses.length - correct;
+      const streak  = getStreak().count;
+
+      const emojis = state.results.map(r => r.correct ? '🟩' : '🟥').join('');
+      const emojiDisplay = state.results.map((r, i) =>
+        `<span class="emoji-item" title="Huis ${i+1}: ${fmt(r.actual)}">${r.correct ? '🟩' : '🟥'}</span>`
+      ).join('');
+
+      const trophy = correct >= 12 ? '🏆' : correct >= 8 ? '🥇' : correct >= 5 ? '🥈' : '🏡';
+
+      // Countdown to midnight UTC
+      const now = new Date();
+      const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+      const msLeft = midnight - now;
+      const hLeft  = Math.floor(msLeft / 3600000);
+      const mLeft  = Math.floor((msLeft % 3600000) / 60000);
+
+      app.innerHTML = `
+        <div class="summary-screen">
+          <div class="summary-header">
+            <div class="summary-trophy">${trophy}</div>
+            <div class="summary-title">${
+              correct >= 12 ? 'Makelaar-niveau!' :
+              correct >= 8  ? 'Goed gedaan!' :
+              correct >= 5  ? 'Niet slecht!' : 'Oefening baart kunst!'
+            }</div>
+            <div class="summary-date">Funda Guesser · ${new Date().toLocaleDateString('nl-NL', { weekday:'long', day:'numeric', month:'long' })}</div>
+          </div>
+
+          <div class="summary-stats">
+            <div class="stat-box">
+              <span class="stat-num green">${correct}</span>
+              <span class="stat-label">Goed</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num red">${wrong}</span>
+              <span class="stat-label">Fout</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-num orange">${streak > 0 ? '🔥 '+streak : '-'}</span>
+              <span class="stat-label">Streak</span>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-grid-label">Je resultaten</div>
+            <div class="emoji-row">${emojiDisplay}</div>
+          </div>
+
+          <button class="share-btn" onclick="window._share('${emojis}', ${correct})">
+            📤 Delen
+          </button>
+          <div id="copiedMsg" style="height:20px;"></div>
+
+          <div class="summary-next">
+            Nieuw spel over <span class="countdown">${hLeft}u ${mLeft}m</span>
+          </div>
+        </div>
+      `;
+    }
+
+    window._share = function(emojis, correct) {
+      const text =
+        `🏠 Funda Guesser — ${new Date().toLocaleDateString('nl-NL')}\n` +
+        `${correct}/15 goed 🎯\n\n` +
+        `${emojis}\n\n` +
+        `Speel op: ${location.href}`;
+
+      if (navigator.share) {
+        navigator.share({ title: 'Funda Guesser', text });
+      } else {
+        navigator.clipboard.writeText(text).then(() => {
+          const el = document.getElementById('copiedMsg');
+          el.innerHTML = '<div class="share-copied">✅ Gekopieerd!</div>';
+          setTimeout(() => { el.innerHTML = ''; }, 2500);
+        }).catch(() => { alert(text); });
+      }
+    };
+
+    function renderLoading() {
+      document.getElementById('app').innerHTML = `
+        <div class="loading-screen">
+          <div class="spinner"></div>
+          <div class="loading-title">Huizen laden…</div>
+          <div class="loading-sub">We halen de nieuwste woningen op</div>
+        </div>`;
+    }
+
+    function renderError(msg) {
+      document.getElementById('app').innerHTML = `
+        <div class="error-screen">
+          <div class="error-emoji">😕</div>
+          <div class="error-title">Geen huizen gevonden</div>
+          <div class="error-detail">
+            <strong>daily_houses.json</strong> kon niet worden geladen.<br>
+            Zorg dat het bestand naast <code>index.html</code> staat.<br><br>
+            Fout: <code>${escHtml(msg)}</code>
+          </div>
+        </div>`;
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── KICK OFF ───────────────────────────────────────────
+    init();
+  })();
+  </script>
+</body>
+</html>

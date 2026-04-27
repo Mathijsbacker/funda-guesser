@@ -1,0 +1,137 @@
+[
+  {
+    "id": 1,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/260/large.jpg",
+    "price": 425000,
+    "m2": 112,
+    "bedrooms": 3,
+    "energy_label": "A",
+    "city": "Amsterdam"
+  },
+  {
+    "id": 2,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/261/large.jpg",
+    "price": 289000,
+    "m2": 78,
+    "bedrooms": 2,
+    "energy_label": "B",
+    "city": "Rotterdam"
+  },
+  {
+    "id": 3,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/262/large.jpg",
+    "price": 650000,
+    "m2": 165,
+    "bedrooms": 4,
+    "energy_label": "A+",
+    "city": "Utrecht"
+  },
+  {
+    "id": 4,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/263/large.jpg",
+    "price": 199000,
+    "m2": 55,
+    "bedrooms": 2,
+    "energy_label": "C",
+    "city": "Eindhoven"
+  },
+  {
+    "id": 5,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/264/large.jpg",
+    "price": 875000,
+    "m2": 210,
+    "bedrooms": 5,
+    "energy_label": "A++",
+    "city": "Amsterdam"
+  },
+  {
+    "id": 6,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/265/large.jpg",
+    "price": 315000,
+    "m2": 90,
+    "bedrooms": 3,
+    "energy_label": "B",
+    "city": "Den Haag"
+  },
+  {
+    "id": 7,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/266/large.jpg",
+    "price": 540000,
+    "m2": 135,
+    "bedrooms": 4,
+    "energy_label": "A",
+    "city": "Haarlem"
+  },
+  {
+    "id": 8,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/267/large.jpg",
+    "price": 245000,
+    "m2": 68,
+    "bedrooms": 2,
+    "energy_label": "D",
+    "city": "Groningen"
+  },
+  {
+    "id": 9,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/268/large.jpg",
+    "price": 720000,
+    "m2": 180,
+    "bedrooms": 5,
+    "energy_label": "A",
+    "city": "Amsterdam"
+  },
+  {
+    "id": 10,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/269/large.jpg",
+    "price": 380000,
+    "m2": 98,
+    "bedrooms": 3,
+    "energy_label": "B",
+    "city": "Leiden"
+  },
+  {
+    "id": 11,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/270/large.jpg",
+    "price": 162000,
+    "m2": 42,
+    "bedrooms": 1,
+    "energy_label": "E",
+    "city": "Tilburg"
+  },
+  {
+    "id": 12,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/271/large.jpg",
+    "price": 595000,
+    "m2": 148,
+    "bedrooms": 4,
+    "energy_label": "A",
+    "city": "Utrecht"
+  },
+  {
+    "id": 13,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/272/large.jpg",
+    "price": 270000,
+    "m2": 82,
+    "bedrooms": 3,
+    "energy_label": "C",
+    "city": "Breda"
+  },
+  {
+    "id": 14,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/273/large.jpg",
+    "price": 980000,
+    "m2": 240,
+    "bedrooms": 6,
+    "energy_label": "A++",
+    "city": "Amsterdam"
+  },
+  {
+    "id": 15,
+    "image": "https://cloud.funda.nl/valentina_images/182/819/274/large.jpg",
+    "price": 335000,
+    "m2": 95,
+    "bedrooms": 3,
+    "energy_label": "B",
+    "city": "Arnhem"
+  }
+]
