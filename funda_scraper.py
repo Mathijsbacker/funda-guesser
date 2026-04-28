@@ -17,7 +17,7 @@ NUM_HOUSES = 15
 BASE_DIR = Path(__file__).parent
 OUTPUT_FILE = BASE_DIR / "daily_houses.json"
 IMAGE_DIR = BASE_DIR / "images"
-IMAGE_DIR.mkdir(exist_ok=True) # Maak de map aan als die niet bestaat
+IMAGE_DIR.mkdir(exist_ok=True)
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -36,12 +36,11 @@ def download_image(url: str, filename: str) -> str:
         if response.status_code == 200:
             path = IMAGE_DIR / filename
             path.write_bytes(response.content)
-            return f"images/{filename}" # Relatief pad voor in de JSON
+            return f"images/{filename}"
     except Exception as e:
         print(f"      ! Download mislukt: {e}")
-    return url # Fallback naar originele URL bij fout
+    return url
 
-# ... (parse_price en parse_m2 functies blijven hetzelfde als voorheen) ...
 def parse_price(text: str) -> int | None:
     digits = re.sub(r"[^\d]", "", text)
     return int(digits) if digits else None
@@ -49,6 +48,15 @@ def parse_price(text: str) -> int | None:
 def parse_m2(text: str) -> int | None:
     m = re.search(r"(\d+)\s*m", text)
     return int(m.group(1)) if m else None
+
+def parse_int(text: str) -> int | None:
+    m = re.search(r"(\d+)", text)
+    return int(m.group(1)) if m else None
+
+def parse_energy_label(text: str) -> str | None:
+    """Haal energielabel op uit tekst, bijv. 'A+', 'B', 'C'."""
+    m = re.search(r"\b([A-G]\+{0,2})\b", text.strip())
+    return m.group(1) if m else None
 
 def scrape() -> list[dict]:
     houses: list[dict] = []
@@ -64,7 +72,8 @@ def scrape() -> list[dict]:
         # Cookies accepteren
         try:
             page.locator('button:has-text("Accepteren")').first.click(timeout=3000)
-        except: pass
+        except:
+            pass
 
         # Scrollen voor lazy loading
         page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
@@ -78,32 +87,104 @@ def scrape() -> list[dict]:
         for i in range(count):
             card = cards.nth(i)
             try:
-                # 1. Haal de URL van de afbeelding op
+                # ── Afbeelding ────────────────────────────────────────────
                 img_el = card.locator("img").first
                 raw_img = img_el.get_attribute("srcset") or img_el.get_attribute("src") or ""
                 remote_url = raw_img.split(",")[0].split(" ")[0].strip()
 
-                # 2. DOWNLOAD de afbeelding
                 local_img_path = ""
                 if remote_url:
                     img_name = f"house_{i+1}.jpg"
                     print(f"  → Downloading image for house #{i+1}...")
                     local_img_path = download_image(remote_url, img_name)
 
-                # 3. Rest van de data
+                # ── Prijs ─────────────────────────────────────────────────
                 price_el = card.locator('[class*="price"]').first
                 price = parse_price(price_el.inner_text()) if price_el.count() > 0 else 0
-                
+
+                # ── Stad ──────────────────────────────────────────────────
                 addr_el = card.locator('[class*="address"]').first
                 city = addr_el.inner_text().split("\n")[-1].strip() if addr_el.count() > 0 else "Onbekend"
 
+                # ── Oppervlakte (m²) ──────────────────────────────────────
+                # Funda toont kenmerken als losse elementen; probeer meerdere selectors
+                m2 = None
+                try:
+                    for sel in [
+                        '[data-test-id="object-primary-info"] li',
+                        '[class*="kenmerken"] li',
+                        '[class*="object-kenmerken"] li',
+                        '[class*="listing-features"] li',
+                    ]:
+                        items = card.locator(sel)
+                        for j in range(items.count()):
+                            txt = items.nth(j).inner_text()
+                            if "m²" in txt or "m2" in txt.lower():
+                                m2 = parse_m2(txt)
+                                break
+                        if m2:
+                            break
+                except:
+                    pass
+
+                # ── Slaapkamers ───────────────────────────────────────────
+                bedrooms = None
+                try:
+                    for sel in [
+                        '[data-test-id*="bedroom"]',
+                        '[aria-label*="slaapkamer"]',
+                        '[class*="bedroom"]',
+                    ]:
+                        el = card.locator(sel).first
+                        if el.count() > 0:
+                            bedrooms = parse_int(el.inner_text())
+                            break
+                    # Fallback: zoek in kenmerken-items naar slaapkamer-tekst
+                    if bedrooms is None:
+                        for sel in [
+                            '[class*="kenmerken"] li',
+                            '[class*="listing-features"] li',
+                        ]:
+                            items = card.locator(sel)
+                            for j in range(items.count()):
+                                txt = items.nth(j).inner_text().lower()
+                                if "slaapkamer" in txt or "bedroom" in txt:
+                                    bedrooms = parse_int(txt)
+                                    break
+                            if bedrooms is not None:
+                                break
+                except:
+                    pass
+
+                # ── Energielabel ──────────────────────────────────────────
+                energy_label = None
+                try:
+                    for sel in [
+                        '[data-test-id*="energy-label"]',
+                        '[class*="energy-label"]',
+                        '[class*="energylabel"]',
+                        '[class*="energy_label"]',
+                        '[aria-label*="energielabel"]',
+                    ]:
+                        el = card.locator(sel).first
+                        if el.count() > 0:
+                            raw = el.inner_text().strip() or el.get_attribute("aria-label") or ""
+                            energy_label = parse_energy_label(raw)
+                            break
+                except:
+                    pass
+
                 houses.append({
                     "id": i + 1,
-                    "image": local_img_path, # Nu een lokaal pad!
+                    "image": local_img_path,
                     "price": price,
-                    "city": city
+                    "m2": m2,
+                    "bedrooms": bedrooms,
+                    "energy_label": energy_label,
+                    "city": city,
                 })
-                print(f"  ✓ {city} opgeslagen.")
+                print(f"  ✓ {city} | €{price} | {m2}m² | {bedrooms}k | {energy_label}")
+
             except Exception as e:
                 print(f"  ✗ Fout bij huis #{i+1}: {e}")
 
@@ -115,6 +196,8 @@ def main():
     if len(houses) >= 5:
         OUTPUT_FILE.write_text(json.dumps(houses, indent=2), encoding="utf-8")
         print(f"✅ Klaar! {len(houses)} huizen en beelden verwerkt.")
+    else:
+        print(f"⚠️  Slechts {len(houses)} huizen gevonden — JSON niet overschreven.")
 
 if __name__ == "__main__":
     main()
