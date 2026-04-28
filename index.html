@@ -695,7 +695,7 @@
   </button>
 
   <!-- TEST MODAL -->
-  <div id="test-modal-backdrop" onclick="e => { if(e.target===this) this.classList.remove('open') }">
+  <div id="test-modal-backdrop">
     <div id="test-modal">
       <div class="tm-header">
         <span class="tm-title">🧪 Scraper testen</span>
@@ -878,7 +878,7 @@
           <div class="house-image-wrap">
             ${imageSrc
               ? `<img src="${escHtml(imageSrc)}" alt="Huis in ${escHtml(h.city)}"
-                   onerror="this.src='https://via.placeholder.com/600x400?text=Afbeelding+laden+mislukt'; this.onerror=null;" />`
+                   onerror="this.style.display='none'; this.parentElement.innerHTML+='<div class=\'image-placeholder\'>🏠</div>'; this.onerror=null;" />`
               : '<div class="image-placeholder">🏠</div>'
             }
             <div class="house-number-badge">🏠 ${index + 1} / ${houses.length}</div>
