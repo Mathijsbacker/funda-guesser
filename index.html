@@ -906,7 +906,7 @@
           </button>
         </div>
 
-        <div id="feedbackArea"> </div>
+        <div id="feedbackArea"></div>
       `;
 
       // Handige interactie: focus op input en scroll naar boven
@@ -918,17 +918,6 @@
           if (e.key === 'Enter') window._submitGuess();
         });
       }
-    }
-    
-        <div id="feedbackArea"></div>
-      `;
-
-      // Enter key shortcut
-      document.getElementById('guessInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') window._submitGuess();
-      });
-
-      document.getElementById('guessInput').focus();
     }
 
     window._submitGuess = function() {
