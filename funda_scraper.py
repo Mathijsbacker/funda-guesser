@@ -87,35 +87,90 @@ def parse_energy_label(text: str) -> str | None:
     m = re.search(r"\b([A-G]\+{0,2})\b", text.strip())
     return m.group(1) if m else None
 
+CARD_SELECTORS = [
+    '[data-test-id="search-result-item"]',      # oud
+    '[data-test-id="search-result"]',
+    'div[class*="search-result"]',
+    'div[class*="SearchResult"]',
+    'li[class*="search-result"]',
+    'article[class*="listing"]',
+    'div[class*="listing-"]',
+    'a[data-test-id*="object"]',
+    '[class*="object-list"] > div',             # generieke fallback
+]
+
+def find_cards(page):
+    """Probeer meerdere selectors; geef de eerste terug die resultaten geeft."""
+    for sel in CARD_SELECTORS:
+        loc = page.locator(sel)
+        n = loc.count()
+        if n > 0:
+            print(f"  ✓ Selector gevonden: '{sel}' → {n} cards")
+            return loc, n
+    return None, 0
+
 def scrape() -> list[dict]:
     houses: list[dict] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-        ctx = browser.new_context(user_agent=random.choice(USER_AGENTS), viewport={"width": 1366, "height": 768})
+        ctx = browser.new_context(
+            user_agent=random.choice(USER_AGENTS),
+            viewport={"width": 1366, "height": 768},
+            locale="nl-NL",
+        )
         page = ctx.new_page()
 
         print(f"[{datetime.now():%H:%M:%S}] Navigating to Funda …")
-        page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30_000)
+        page.goto(TARGET_URL, wait_until="networkidle", timeout=45_000)
         random_delay(2, 4)
 
-        # Cookies accepteren
+        # Cookies accepteren – probeer meerdere knopteksten
+        for label in ["Accepteren", "Alles accepteren", "Akkoord", "Accept"]:
+            try:
+                page.locator(f'button:has-text("{label}")').first.click(timeout=2000)
+                print(f"  ✓ Cookie-dialog gesloten ({label})")
+                random_delay(1, 2)
+                break
+            except:
+                pass
+
+        # Wacht tot er iets zichtbaars op de pagina staat
         try:
-            page.locator('button:has-text("Accepteren")').first.click(timeout=3000)
+            page.wait_for_selector("main", timeout=10_000)
         except:
             pass
 
         # Scrollen voor lazy loading
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
-        random_delay(1, 2)
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        random_delay(2, 3)
+        for fraction in [0.25, 0.5, 0.75, 1.0]:
+            page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {fraction})")
+            random_delay(0.8, 1.5)
 
-        cards = page.locator('[data-test-id="search-result-item"]')
-        count = min(NUM_HOUSES, cards.count())
+        # ── DEBUG: dump de eerste 3000 tekens HTML naar stdout ────────────
+        html_snippet = page.content()[:3000]
+        print(f"\n── PAGE HTML (eerste 3000 chars) ──\n{html_snippet}\n──────────────────────────────────\n")
+
+        cards, count = find_cards(page)
+        if count == 0:
+            print("⚠️  Geen cards gevonden met bekende selectors!")
+            # Dump alle unieke class-namen als extra debug-info
+            classes = page.evaluate("""
+                () => [...new Set(
+                    [...document.querySelectorAll('*')]
+                    .map(el => el.className)
+                    .filter(c => typeof c === 'string' && c.includes('search') || (typeof c === 'string' && c.includes('listing')))
+                )].slice(0, 40)
+            """)
+            print("Gevonden klassen met 'search'/'listing':", classes)
+            browser.close()
+            return []
+
+        count = min(NUM_HOUSES, count)
 
         for i in range(count):
             card = cards.nth(i)
             try:
+                full_text = card.inner_text()   # volledige tekst als fallback
+
                 # ── Afbeelding ────────────────────────────────────────────
                 img_el = card.locator("img").first
                 srcset = img_el.get_attribute("srcset") or ""
@@ -128,80 +183,83 @@ def scrape() -> list[dict]:
                     local_img_path = download_image(remote_url, f"house_{i+1}")
 
                 # ── Prijs ─────────────────────────────────────────────────
-                price_el = card.locator('[class*="price"]').first
-                price = parse_price(price_el.inner_text()) if price_el.count() > 0 else 0
+                price = 0
+                for sel in ['[class*="price"]', '[class*="Price"]', '[data-test-id*="price"]']:
+                    el = card.locator(sel).first
+                    if el.count() > 0:
+                        price = parse_price(el.inner_text()) or 0
+                        if price:
+                            break
+                if not price:
+                    # fallback: zoek "€ 123.000" patroon in volledige tekst
+                    m = re.search(r"€\s*([\d.,]+)", full_text)
+                    if m:
+                        price = parse_price(m.group(1)) or 0
 
                 # ── Stad ──────────────────────────────────────────────────
-                addr_el = card.locator('[class*="address"]').first
-                city = addr_el.inner_text().split("\n")[-1].strip() if addr_el.count() > 0 else "Onbekend"
+                city = "Onbekend"
+                for sel in ['[class*="address"]', '[class*="Address"]', '[class*="city"]',
+                            '[data-test-id*="address"]', 'h2', 'h3']:
+                    el = card.locator(sel).first
+                    if el.count() > 0:
+                        txt = el.inner_text().strip()
+                        if txt:
+                            city = txt.split("\n")[-1].strip()
+                            break
 
                 # ── Oppervlakte (m²) ──────────────────────────────────────
-                # Funda toont kenmerken als losse elementen; probeer meerdere selectors
                 m2 = None
-                try:
-                    for sel in [
-                        '[data-test-id="object-primary-info"] li',
-                        '[class*="kenmerken"] li',
-                        '[class*="object-kenmerken"] li',
-                        '[class*="listing-features"] li',
-                    ]:
-                        items = card.locator(sel)
-                        for j in range(items.count()):
-                            txt = items.nth(j).inner_text()
-                            if "m²" in txt or "m2" in txt.lower():
-                                m2 = parse_m2(txt)
-                                break
-                        if m2:
+                for sel in ['[data-test-id*="floor-area"]', '[class*="kenmerken"] li',
+                            '[class*="features"] li', 'ul li']:
+                    items = card.locator(sel)
+                    for j in range(items.count()):
+                        txt = items.nth(j).inner_text()
+                        if "m²" in txt or "m2" in txt.lower():
+                            m2 = parse_m2(txt)
                             break
-                except:
-                    pass
+                    if m2:
+                        break
+                if not m2:
+                    m = re.search(r"(\d+)\s*m²", full_text)
+                    if m:
+                        m2 = int(m.group(1))
 
                 # ── Slaapkamers ───────────────────────────────────────────
                 bedrooms = None
-                try:
-                    for sel in [
-                        '[data-test-id*="bedroom"]',
-                        '[aria-label*="slaapkamer"]',
-                        '[class*="bedroom"]',
-                    ]:
-                        el = card.locator(sel).first
-                        if el.count() > 0:
-                            bedrooms = parse_int(el.inner_text())
-                            break
-                    # Fallback: zoek in kenmerken-items naar slaapkamer-tekst
-                    if bedrooms is None:
-                        for sel in [
-                            '[class*="kenmerken"] li',
-                            '[class*="listing-features"] li',
-                        ]:
-                            items = card.locator(sel)
-                            for j in range(items.count()):
-                                txt = items.nth(j).inner_text().lower()
-                                if "slaapkamer" in txt or "bedroom" in txt:
-                                    bedrooms = parse_int(txt)
-                                    break
-                            if bedrooms is not None:
+                for sel in ['[data-test-id*="bedroom"]', '[aria-label*="slaapkamer"]',
+                            '[class*="bedroom"]']:
+                    el = card.locator(sel).first
+                    if el.count() > 0:
+                        bedrooms = parse_int(el.inner_text())
+                        break
+                if bedrooms is None:
+                    for sel in ['[class*="kenmerken"] li', '[class*="features"] li', 'ul li']:
+                        items = card.locator(sel)
+                        for j in range(items.count()):
+                            txt = items.nth(j).inner_text().lower()
+                            if "slaapkamer" in txt or "bedroom" in txt:
+                                bedrooms = parse_int(txt)
                                 break
-                except:
-                    pass
+                        if bedrooms is not None:
+                            break
+                if bedrooms is None:
+                    m = re.search(r"(\d+)\s*slaapkamer", full_text, re.I)
+                    if m:
+                        bedrooms = int(m.group(1))
 
                 # ── Energielabel ──────────────────────────────────────────
                 energy_label = None
-                try:
-                    for sel in [
-                        '[data-test-id*="energy-label"]',
-                        '[class*="energy-label"]',
-                        '[class*="energylabel"]',
-                        '[class*="energy_label"]',
-                        '[aria-label*="energielabel"]',
-                    ]:
-                        el = card.locator(sel).first
-                        if el.count() > 0:
-                            raw = el.inner_text().strip() or el.get_attribute("aria-label") or ""
-                            energy_label = parse_energy_label(raw)
-                            break
-                except:
-                    pass
+                for sel in ['[data-test-id*="energy"]', '[class*="energy"]',
+                            '[aria-label*="energie"]']:
+                    el = card.locator(sel).first
+                    if el.count() > 0:
+                        raw = el.inner_text().strip() or el.get_attribute("aria-label") or ""
+                        energy_label = parse_energy_label(raw)
+                        break
+                if not energy_label:
+                    m = re.search(r"\benergie(?:label)?\s*:?\s*([A-G]\+{0,2})\b", full_text, re.I)
+                    if m:
+                        energy_label = m.group(1).upper()
 
                 houses.append({
                     "id": i + 1,
@@ -212,7 +270,7 @@ def scrape() -> list[dict]:
                     "energy_label": energy_label,
                     "city": city,
                 })
-                print(f"  ✓ {city} | €{price} | {m2}m² | {bedrooms}k | {energy_label}")
+                print(f"  ✓ #{i+1} {city} | €{price} | {m2}m² | {bedrooms}k | {energy_label}")
 
             except Exception as e:
                 print(f"  ✗ Fout bij huis #{i+1}: {e}")
