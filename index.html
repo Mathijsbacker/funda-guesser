@@ -710,11 +710,15 @@
 
         <div class="tm-field">
           <label class="tm-label">GitHub gebruikersnaam / org</label>
-          <input class="tm-input" id="tm-owner" type="text" placeholder="bijv. jouw-naam" autocomplete="off" />
+          <input class="tm-input" id="tm-owner" type="text" placeholder="bijv. mathijsbacker" autocomplete="off" />
         </div>
         <div class="tm-field">
           <label class="tm-label">Repository naam</label>
           <input class="tm-input" id="tm-repo" type="text" placeholder="bijv. funda-guesser" autocomplete="off" />
+        </div>
+        <div class="tm-field">
+          <label class="tm-label">Workflow bestandsnaam <span style="font-weight:400;text-transform:none;letter-spacing:0">— check op GitHub onder <code>.github/workflows/</code></span></label>
+          <input class="tm-input" id="tm-workflow" type="text" placeholder="daily_scrape.yml" value="daily_scrape.yml" autocomplete="off" />
         </div>
         <div class="tm-field">
           <label class="tm-label">GitHub Personal Access Token</label>
@@ -1081,9 +1085,10 @@
 
     // ── TEST SCRAPER ───────────────────────────────────────
     window._triggerScraper = async function() {
-      const owner = document.getElementById('tm-owner').value.trim();
-      const repo  = document.getElementById('tm-repo').value.trim();
-      const token = document.getElementById('tm-token').value.trim();
+      const owner    = document.getElementById('tm-owner').value.trim();
+      const repo     = document.getElementById('tm-repo').value.trim();
+      const workflow = document.getElementById('tm-workflow').value.trim() || 'daily_scrape.yml';
+      const token    = document.getElementById('tm-token').value.trim();
       const status = document.getElementById('tm-status');
       const btn    = document.getElementById('tm-run-btn');
 
@@ -1099,7 +1104,7 @@
 
       try {
         const res = await fetch(
-          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/daily_scrape.yml/dispatches`,
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
           {
             method: 'POST',
             headers: {
