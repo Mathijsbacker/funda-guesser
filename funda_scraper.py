@@ -28,15 +28,44 @@ USER_AGENTS = [
 def random_delay(lo: float = 1.5, hi: float = 4.0):
     time.sleep(random.uniform(lo, hi))
 
-def download_image(url: str, filename: str) -> str:
-    """Downloadt de afbeelding en geeft het lokale pad terug."""
+def best_url_from_srcset(srcset: str) -> str:
+    """Kiest de URL met de hoogste breedte (bijv. '1200w') uit een srcset-string."""
+    best_url, best_w = "", 0
+    for part in srcset.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        tokens = part.split()
+        url = tokens[0]
+        w = 0
+        if len(tokens) > 1 and tokens[-1].endswith("w"):
+            try:
+                w = int(tokens[-1][:-1])
+            except ValueError:
+                pass
+        if w > best_w or best_url == "":
+            best_w, best_url = w, url
+    return best_url
+
+def download_image(url: str, filename_stem: str) -> str:
+    """Downloadt de afbeelding en geeft het relatieve lokale pad terug."""
     try:
-        headers = {"User-Agent": random.choice(USER_AGENTS), "Referer": "https://www.funda.nl/"}
-        response = requests.get(url, headers=headers, timeout=10)
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Referer": "https://www.funda.nl/",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
-            path = IMAGE_DIR / filename
+            ct = response.headers.get("Content-Type", "image/jpeg")
+            ext = "png" if "png" in ct else "webp" if "webp" in ct else "jpg"
+            fname = f"{filename_stem}.{ext}"
+            path = IMAGE_DIR / fname
             path.write_bytes(response.content)
-            return f"images/{filename}"
+            print(f"      ✓ {fname} ({len(response.content) // 1024} KB)")
+            return f"images/{fname}"
+        else:
+            print(f"      ! HTTP {response.status_code}")
     except Exception as e:
         print(f"      ! Download mislukt: {e}")
     return url
@@ -89,14 +118,14 @@ def scrape() -> list[dict]:
             try:
                 # ── Afbeelding ────────────────────────────────────────────
                 img_el = card.locator("img").first
-                raw_img = img_el.get_attribute("srcset") or img_el.get_attribute("src") or ""
-                remote_url = raw_img.split(",")[0].split(" ")[0].strip()
+                srcset = img_el.get_attribute("srcset") or ""
+                src    = img_el.get_attribute("src") or ""
+                remote_url = best_url_from_srcset(srcset) if srcset else src
 
                 local_img_path = ""
-                if remote_url:
-                    img_name = f"house_{i+1}.jpg"
-                    print(f"  → Downloading image for house #{i+1}...")
-                    local_img_path = download_image(remote_url, img_name)
+                if remote_url and remote_url.startswith("http"):
+                    print(f"  → Downloading image for house #{i+1} …")
+                    local_img_path = download_image(remote_url, f"house_{i+1}")
 
                 # ── Prijs ─────────────────────────────────────────────────
                 price_el = card.locator('[class*="price"]').first
