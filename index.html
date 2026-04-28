@@ -867,15 +867,18 @@
       const h = houses[index];
       const app = document.getElementById('app');
 
-      // Build energy chip class (handle A++, A+)
-      const eClass = 'energy-chip energy-' + h.energy_label.replace(/\+/g, '\\+');
+      // Bepaal de afbeeldingsbron: de scraper gebruikt nu het lokale pad "images/house_X.jpg"
+      const imageSrc = h.image ? h.image : '';
+
+      // Build energy chip class (ontsnapt eventuele plusjes voor CSS selectors)
+      const eClass = 'energy-chip energy-' + (h.energy_label ? h.energy_label.replace(/\+/g, '\\+') : 'unknown');
 
       app.innerHTML = `
         <div class="house-card">
           <div class="house-image-wrap">
-            ${h.image
-              ? `<img src="${escHtml(h.image)}" alt="House in ${escHtml(h.city)}"
-                   onerror="this.parentNode.innerHTML='<div class=\\'image-placeholder\\'>🏠</div>'" />`
+            ${imageSrc
+              ? `<img src="${escHtml(imageSrc)}" alt="Huis in ${escHtml(h.city)}"
+                   onerror="this.src='https://via.placeholder.com/600x400?text=Afbeelding+laden+mislukt'; this.onerror=null;" />`
               : '<div class="image-placeholder">🏠</div>'
             }
             <div class="house-number-badge">🏠 ${index + 1} / ${houses.length}</div>
@@ -885,7 +888,7 @@
             <div class="house-specs">
               ${h.m2 ? `<div class="spec-chip"><span class="icon">📐</span>${h.m2} m²</div>` : ''}
               ${h.bedrooms ? `<div class="spec-chip"><span class="icon">🛏</span>${h.bedrooms} slaapkamers</div>` : ''}
-              ${h.energy_label ? `<div class="${eClass}">⚡ ${escHtml(h.energy_label)}</div>` : ''}
+              ${h.energy_label && h.energy_label !== '?' ? `<div class="${eClass}">⚡ ${escHtml(h.energy_label)}</div>` : ''}
             </div>
           </div>
         </div>
@@ -903,6 +906,20 @@
           </button>
         </div>
 
+        <div id="feedbackArea"></div>
+      `;
+
+      // Handige interactie: focus op input en scroll naar boven
+      window.scrollTo(0, 0);
+      const input = document.getElementById('guessInput');
+      if (input) {
+        input.focus();
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') window._submitGuess();
+        });
+      }
+    }
+    
         <div id="feedbackArea"></div>
       `;
 
