@@ -87,28 +87,6 @@ def parse_energy_label(text: str) -> str | None:
     m = re.search(r"\b([A-G]\+{0,2})\b", text.strip())
     return m.group(1) if m else None
 
-CARD_SELECTORS = [
-    '[data-test-id="search-result-item"]',      # oud
-    '[data-test-id="search-result"]',
-    'div[class*="search-result"]',
-    'div[class*="SearchResult"]',
-    'li[class*="search-result"]',
-    'article[class*="listing"]',
-    'div[class*="listing-"]',
-    'a[data-test-id*="object"]',
-    '[class*="object-list"] > div',             # generieke fallback
-]
-
-def find_cards(page):
-    """Probeer meerdere selectors; geef de eerste terug die resultaten geeft."""
-    for sel in CARD_SELECTORS:
-        loc = page.locator(sel)
-        n = loc.count()
-        if n > 0:
-            print(f"  ✓ Selector gevonden: '{sel}' → {n} cards")
-            return loc, n
-    return None, 0
-
 def scrape() -> list[dict]:
     houses: list[dict] = []
     with sync_playwright() as p:
@@ -124,7 +102,7 @@ def scrape() -> list[dict]:
         page.goto(TARGET_URL, wait_until="networkidle", timeout=45_000)
         random_delay(2, 4)
 
-        # Cookies accepteren – probeer meerdere knopteksten
+        # Cookies accepteren
         for label in ["Accepteren", "Alles accepteren", "Akkoord", "Accept"]:
             try:
                 page.locator(f'button:has-text("{label}")').first.click(timeout=2000)
@@ -134,132 +112,98 @@ def scrape() -> list[dict]:
             except:
                 pass
 
-        # Wacht tot er iets zichtbaars op de pagina staat
+        # Wacht op listings
         try:
-            page.wait_for_selector("main", timeout=10_000)
+            page.wait_for_selector('a[data-testid="listingDetailsAddress"]', timeout=15_000)
         except:
-            pass
+            print("⚠️  Timeout wachten op listings")
 
         # Scrollen voor lazy loading
         for fraction in [0.25, 0.5, 0.75, 1.0]:
             page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {fraction})")
             random_delay(0.8, 1.5)
 
-        # ── DEBUG: dump de eerste 3000 tekens HTML naar stdout ────────────
-        html_snippet = page.content()[:3000]
-        print(f"\n── PAGE HTML (eerste 3000 chars) ──\n{html_snippet}\n──────────────────────────────────\n")
+        # ── Extraheer alle listings in één JS-call ────────────────────────
+        raw_listings = page.evaluate(f"""
+        () => {{
+            const results = [];
+            const links = document.querySelectorAll('a[data-testid="listingDetailsAddress"]');
 
-        cards, count = find_cards(page)
-        if count == 0:
-            print("⚠️  Geen cards gevonden met bekende selectors!")
-            # Dump alle unieke class-namen als extra debug-info
-            classes = page.evaluate("""
-                () => [...new Set(
-                    [...document.querySelectorAll('*')]
-                    .map(el => el.className)
-                    .filter(c => typeof c === 'string' && c.includes('search') || (typeof c === 'string' && c.includes('listing')))
-                )].slice(0, 40)
-            """)
-            print("Gevonden klassen met 'search'/'listing':", classes)
-            browser.close()
-            return []
+            links.forEach((link) => {{
+                // Ga omhoog naar de kaart-container
+                const card = link.closest('[class*="@container"]')
+                           || link.closest('.flex-col')
+                           || link.parentElement?.parentElement?.parentElement;
+                if (!card) return;
 
-        count = min(NUM_HOUSES, count)
+                // Afbeelding: pak de img met srcset die een cloud.funda.nl URL heeft
+                const img = card.querySelector('img[srcset*="cloud.funda"]')
+                         || card.querySelector('img[src*="cloud.funda"]');
+                const srcset = img ? (img.getAttribute('srcset') || '') : '';
+                const src    = img ? (img.getAttribute('src') || '') : '';
 
-        for i in range(count):
-            card = cards.nth(i)
+                // Stad (postcode + plaatsnaam, bijv. "7601 EH Almelo")
+                const cityEl = link.querySelector('.text-neutral-80');
+                const city   = cityEl ? cityEl.innerText.trim() : 'Onbekend';
+
+                // Prijs (bijv. "€ 184.500 k.k.")
+                const priceEl = card.querySelector('.font-semibold .truncate');
+                const priceText = priceEl ? priceEl.innerText.trim() : '';
+
+                // Stats: elk <li> in de ul bevat een SVG + <span>
+                // Volgorde: m², [perceel m²], slaapkamers, energielabel
+                const spans = [...card.querySelectorAll('ul li span')]
+                    .map(s => s.innerText.trim())
+                    .filter(s => s.length > 0);
+
+                results.push({{ srcset, src, city, priceText, spans }});
+            }});
+
+            return results.slice(0, {NUM_HOUSES});
+        }}
+        """)
+
+        print(f"  → {len(raw_listings)} listings gevonden in DOM")
+
+        for i, listing in enumerate(raw_listings):
             try:
-                full_text = card.inner_text()   # volledige tekst als fallback
-
                 # ── Afbeelding ────────────────────────────────────────────
-                img_el = card.locator("img").first
-                srcset = img_el.get_attribute("srcset") or ""
-                src    = img_el.get_attribute("src") or ""
-                remote_url = best_url_from_srcset(srcset) if srcset else src
-
+                remote_url = best_url_from_srcset(listing["srcset"]) if listing["srcset"] else listing["src"]
                 local_img_path = ""
                 if remote_url and remote_url.startswith("http"):
-                    print(f"  → Downloading image for house #{i+1} …")
+                    print(f"  → Downloading image #{i+1} …")
                     local_img_path = download_image(remote_url, f"house_{i+1}")
 
                 # ── Prijs ─────────────────────────────────────────────────
-                price = 0
-                for sel in ['[class*="price"]', '[class*="Price"]', '[data-test-id*="price"]']:
-                    el = card.locator(sel).first
-                    if el.count() > 0:
-                        price = parse_price(el.inner_text()) or 0
-                        if price:
-                            break
-                if not price:
-                    # fallback: zoek "€ 123.000" patroon in volledige tekst
-                    m = re.search(r"€\s*([\d.,]+)", full_text)
-                    if m:
-                        price = parse_price(m.group(1)) or 0
+                price = parse_price(listing["priceText"]) or 0
 
                 # ── Stad ──────────────────────────────────────────────────
-                city = "Onbekend"
-                for sel in ['[class*="address"]', '[class*="Address"]', '[class*="city"]',
-                            '[data-test-id*="address"]', 'h2', 'h3']:
-                    el = card.locator(sel).first
-                    if el.count() > 0:
-                        txt = el.inner_text().strip()
-                        if txt:
-                            city = txt.split("\n")[-1].strip()
-                            break
+                # cityEl bevat "7601 EH Almelo" — pak alles na de postcode
+                city_raw = listing["city"]
+                city_match = re.search(r"\d{4}\s*[A-Z]{2}\s+(.+)", city_raw)
+                city = city_match.group(1).strip() if city_match else city_raw
 
-                # ── Oppervlakte (m²) ──────────────────────────────────────
+                # ── Parse stats uit spans ─────────────────────────────────
+                # Spans zijn bijv. ["62 m²", "1", "D"] of ["105 m²", "127 m²", "3", "A"]
+                # m²-spans herkennen we door "m²", energielabel door A-F patroon,
+                # slaapkamers is een los getal.
                 m2 = None
-                for sel in ['[data-test-id*="floor-area"]', '[class*="kenmerken"] li',
-                            '[class*="features"] li', 'ul li']:
-                    items = card.locator(sel)
-                    for j in range(items.count()):
-                        txt = items.nth(j).inner_text()
-                        if "m²" in txt or "m2" in txt.lower():
-                            m2 = parse_m2(txt)
-                            break
-                    if m2:
-                        break
-                if not m2:
-                    m = re.search(r"(\d+)\s*m²", full_text)
-                    if m:
-                        m2 = int(m.group(1))
-
-                # ── Slaapkamers ───────────────────────────────────────────
                 bedrooms = None
-                for sel in ['[data-test-id*="bedroom"]', '[aria-label*="slaapkamer"]',
-                            '[class*="bedroom"]']:
-                    el = card.locator(sel).first
-                    if el.count() > 0:
-                        bedrooms = parse_int(el.inner_text())
-                        break
-                if bedrooms is None:
-                    for sel in ['[class*="kenmerken"] li', '[class*="features"] li', 'ul li']:
-                        items = card.locator(sel)
-                        for j in range(items.count()):
-                            txt = items.nth(j).inner_text().lower()
-                            if "slaapkamer" in txt or "bedroom" in txt:
-                                bedrooms = parse_int(txt)
-                                break
-                        if bedrooms is not None:
-                            break
-                if bedrooms is None:
-                    m = re.search(r"(\d+)\s*slaapkamer", full_text, re.I)
-                    if m:
-                        bedrooms = int(m.group(1))
-
-                # ── Energielabel ──────────────────────────────────────────
                 energy_label = None
-                for sel in ['[data-test-id*="energy"]', '[class*="energy"]',
-                            '[aria-label*="energie"]']:
-                    el = card.locator(sel).first
-                    if el.count() > 0:
-                        raw = el.inner_text().strip() or el.get_attribute("aria-label") or ""
-                        energy_label = parse_energy_label(raw)
-                        break
-                if not energy_label:
-                    m = re.search(r"\benergie(?:label)?\s*:?\s*([A-G]\+{0,2})\b", full_text, re.I)
-                    if m:
-                        energy_label = m.group(1).upper()
+                m2_found = 0  # teller: eerste m² = woonoppervlak
+
+                for span in listing["spans"]:
+                    if "m²" in span:
+                        val = parse_m2(span)
+                        if val and m2_found == 0:
+                            m2 = val        # eerste = woonoppervlak
+                            m2_found += 1
+                        else:
+                            m2_found += 1   # tweede = perceeloppervlak, sla over
+                    elif re.fullmatch(r"[A-G]\+{0,2}", span.strip()):
+                        energy_label = span.strip()
+                    elif re.fullmatch(r"\d{1,2}", span.strip()) and bedrooms is None:
+                        bedrooms = int(span.strip())
 
                 houses.append({
                     "id": i + 1,
@@ -273,7 +217,7 @@ def scrape() -> list[dict]:
                 print(f"  ✓ #{i+1} {city} | €{price} | {m2}m² | {bedrooms}k | {energy_label}")
 
             except Exception as e:
-                print(f"  ✗ Fout bij huis #{i+1}: {e}")
+                print(f"  ✗ Fout bij listing #{i+1}: {e}")
 
         browser.close()
     return houses
