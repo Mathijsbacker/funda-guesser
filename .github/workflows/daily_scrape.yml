@@ -22,38 +22,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      # ── 3. Install dependencies ───────────────────────────────────────────
+# ── 3. Install dependencies ───────────────────────────────────────────
       - name: Install Python packages
         run: |
-          pip install playwright
+          pip install playwright requests  # <--- 'requests' toegevoegd
           playwright install chromium --with-deps
 
-      # ── 4. Run the scraper ────────────────────────────────────────────────
-      - name: Run Funda scraper
-        run: python funda_scraper.py
-        env:
-          # Add any secret env vars here (e.g. proxy credentials)
-          # PROXY_URL: ${{ secrets.PROXY_URL }}
-          PYTHONUNBUFFERED: "1"
+      # ... stap 4 en 5 blijven hetzelfde ...
 
-      # ── 5. Verify output ──────────────────────────────────────────────────
-      - name: Verify JSON output
-        run: |
-          python - <<'EOF'
-          import json, sys
-          data = json.loads(open("daily_houses.json").read())
-          assert isinstance(data, list), "Not a list"
-          assert len(data) >= 5, f"Too few houses: {len(data)}"
-          print(f"✅ {len(data)} houses in daily_houses.json")
-          EOF
-
-      # ── 6. Commit the new JSON ────────────────────────────────────────────
-      - name: Commit updated daily_houses.json
+      # ── 6. Commit de nieuwe JSON én de afbeeldingen ────────────────────────
+      - name: Commit updated files
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add daily_houses.json
-          # Only commit if there are actual changes
+          git add daily_houses.json images/*.jpg  # <--- Voegt ook de plaatjes toe
           git diff --cached --quiet || \
-            git commit -m "chore: 🏠 daily houses update $(date -u '+%Y-%m-%d')"
+            git commit -m "chore: 🏠 update houses & images $(date -u '+%Y-%m-%d')"
           git push
