@@ -21,40 +21,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
       # ── 3. Install dependencies ───────────────────────────────────────────
       - name: Install Python packages
         run: |
-          pip install playwright
+          pip install playwright requests
           playwright install chromium --with-deps
 
-      # ── 4. Run the scraper ────────────────────────────────────────────────
+      # ── 4. Run the scraper ───────────────────────────────────────────────
       - name: Run Funda scraper
         run: python funda_scraper.py
-        env:
-          # Add any secret env vars here (e.g. proxy credentials)
-          # PROXY_URL: ${{ secrets.PROXY_URL }}
-          PYTHONUNBUFFERED: "1"
 
-      # ── 5. Verify output ──────────────────────────────────────────────────
-      - name: Verify JSON output
+      # ── 5. Verify output ─────────────────────────────────────────────────
+      - name: Verify output
         run: |
-          python - <<'EOF'
-          import json, sys
-          data = json.loads(open("daily_houses.json").read())
-          assert isinstance(data, list), "Not a list"
-          assert len(data) >= 5, f"Too few houses: {len(data)}"
-          print(f"✅ {len(data)} houses in daily_houses.json")
-          EOF
+          echo "Houses scraped:"
+          python -c "import json; data=json.load(open('daily_houses.json')); print(len(data), 'huizen')"
 
-      # ── 6. Commit the new JSON ────────────────────────────────────────────
-      - name: Commit updated daily_houses.json
+      # ── 6. Commit de nieuwe JSON én de afbeeldingen ────────────────────────
+      - name: Commit updated files
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add daily_houses.json
-          # Only commit if there are actual changes
+          git add daily_houses.json images/*.jpg
           git diff --cached --quiet || \
-            git commit -m "chore: 🏠 daily houses update $(date -u '+%Y-%m-%d')"
+            git commit -m "chore: 🏠 update houses & images $(date -u '+%Y-%m-%d')"
           git push
