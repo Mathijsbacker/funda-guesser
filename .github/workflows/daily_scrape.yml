@@ -2,9 +2,8 @@ name: 🏠 Daily Funda Scraper
 
 on:
   schedule:
-    # Every night at 00:05 UTC (slight offset to avoid GitHub busy-period)
     - cron: "5 0 * * *"
-  workflow_dispatch:   # allow manual runs from the Actions tab
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -12,30 +11,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout repo ──────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Set up Python ─────────────────────────────────────────────────
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-# ── 3. Install dependencies ───────────────────────────────────────────
       - name: Install Python packages
         run: |
-          pip install playwright requests  # <--- 'requests' toegevoegd
+          pip install playwright requests
           playwright install chromium --with-deps
 
-      # ... stap 4 en 5 blijven hetzelfde ...
+      - name: Ensure images directory exists
+        run: mkdir -p images
 
-      # ── 6. Commit de nieuwe JSON én de afbeeldingen ────────────────────────
+      - name: Run Funda scraper
+        run: python funda_scraper.py
+
+      - name: Verify output
+        run: |
+          python -c "
+          import json, os
+          data = json.load(open('daily_houses.json'))
+          print(f'{len(data)} huizen opgeslagen')
+          imgs = [h['image'] for h in data if h.get('image','').startswith('images/')]
+          print(f'{len(imgs)} lokale afbeeldingen in JSON')
+          files = os.listdir('images') if os.path.isdir('images') else []
+          print(f'{len(files)} bestanden in images/: {files[:5]}')
+          "
+
       - name: Commit updated files
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add daily_houses.json images/*.jpg  # <--- Voegt ook de plaatjes toe
+
+          git add daily_houses.json
+
+          # Voeg afbeeldingen toe als de map niet leeg is (voorkomt glob-crash)
+          if [ -n "$(ls images/ 2>/dev/null)" ]; then
+            git add images/
+          fi
+
           git diff --cached --quiet || \
             git commit -m "chore: 🏠 update houses & images $(date -u '+%Y-%m-%d')"
           git push
