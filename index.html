@@ -512,6 +512,151 @@
     .error-title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: var(--red); }
     .error-detail { font-size: 0.85rem; color: var(--gray-400); line-height: 1.5; }
 
+    /* ── TEST PANEL ──────────────────────────────────────── */
+    #test-fab {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 999;
+      background: #1f2937;
+      color: #f9fafb;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-family: var(--font-body);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+    #test-fab:hover { background: #374151; transform: translateY(-2px); }
+
+    #test-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #test-modal-backdrop.open { display: flex; }
+    #test-modal {
+      background: white;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      overflow: hidden;
+      animation: slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .tm-header {
+      background: #1f2937;
+      color: white;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tm-title { font-size: 0.95rem; font-weight: 700; }
+    .tm-badge {
+      background: var(--orange);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tm-body { padding: 20px; }
+    .tm-info {
+      background: var(--blue-light);
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      color: var(--blue-dark);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .tm-info a { color: var(--blue); font-weight: 600; }
+    .tm-field { margin-bottom: 12px; }
+    .tm-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 5px;
+    }
+    .tm-input {
+      width: 100%;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      color: var(--gray-900);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .tm-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,113,179,0.1); }
+    .tm-input[type=password] { letter-spacing: 0.12em; }
+    .tm-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .tm-run {
+      flex: 1;
+      padding: 12px;
+      background: var(--orange);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tm-run:hover:not(:disabled) { background: var(--orange-dark); }
+    .tm-run:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tm-cancel {
+      padding: 12px 16px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: 10px;
+      color: var(--gray-600);
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tm-cancel:hover { background: var(--gray-200); }
+    .tm-status {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      line-height: 1.4;
+      display: none;
+    }
+    .tm-status.info  { display: block; background: var(--blue-light);  color: var(--blue-dark); border: 1px solid #bfdbfe; }
+    .tm-status.ok    { display: block; background: var(--green-light); color: #15803d; border: 1px solid #bbf7d0; }
+    .tm-status.error { display: block; background: var(--red-light);   color: #991b1b; border: 1px solid #fecaca; }
+
     /* ── RESPONSIVE ──────────────────────────────────────── */
     @media (max-width: 480px) {
       .house-city { font-size: 1.3rem; }
@@ -542,6 +687,49 @@
       <div class="progress-fill" id="progressFill" style="width:0%"></div>
     </div>
     <div class="progress-dots" id="progressDots"></div>
+  </div>
+
+  <!-- TEST FAB -->
+  <button id="test-fab" onclick="document.getElementById('test-modal-backdrop').classList.add('open')">
+    🧪 Test scraper
+  </button>
+
+  <!-- TEST MODAL -->
+  <div id="test-modal-backdrop" onclick="e => { if(e.target===this) this.classList.remove('open') }">
+    <div id="test-modal">
+      <div class="tm-header">
+        <span class="tm-title">🧪 Scraper testen</span>
+        <span class="tm-badge">Tijdelijk</span>
+      </div>
+      <div class="tm-body">
+        <div class="tm-info">
+          Vul je GitHub-gegevens in. De knop triggert jouw <strong>daily_scrape</strong> workflow via de GitHub API — de scraper draait dan in de cloud en commit de nieuwe JSON automatisch.
+          <br><br>
+          Token aanmaken: <a href="https://github.com/settings/tokens/new?scopes=repo,workflow" target="_blank">github.com/settings/tokens</a> → scope: <code>workflow</code>
+        </div>
+
+        <div class="tm-field">
+          <label class="tm-label">GitHub gebruikersnaam / org</label>
+          <input class="tm-input" id="tm-owner" type="text" placeholder="bijv. jouw-naam" autocomplete="off" />
+        </div>
+        <div class="tm-field">
+          <label class="tm-label">Repository naam</label>
+          <input class="tm-input" id="tm-repo" type="text" placeholder="bijv. funda-guesser" autocomplete="off" />
+        </div>
+        <div class="tm-field">
+          <label class="tm-label">GitHub Personal Access Token</label>
+          <input class="tm-input" id="tm-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+        </div>
+
+        <div class="tm-actions">
+          <button class="tm-cancel" onclick="document.getElementById('test-modal-backdrop').classList.remove('open')">Annuleren</button>
+          <button class="tm-run" id="tm-run-btn" onclick="window._triggerScraper()">
+            ▶ Scraper starten
+          </button>
+        </div>
+        <div class="tm-status" id="tm-status"></div>
+      </div>
+    </div>
   </div>
 
   <!-- MAIN CONTENT -->
@@ -890,6 +1078,62 @@
         .replace(/&/g,'&amp;').replace(/</g,'&lt;')
         .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+
+    // ── TEST SCRAPER ───────────────────────────────────────
+    window._triggerScraper = async function() {
+      const owner = document.getElementById('tm-owner').value.trim();
+      const repo  = document.getElementById('tm-repo').value.trim();
+      const token = document.getElementById('tm-token').value.trim();
+      const status = document.getElementById('tm-status');
+      const btn    = document.getElementById('tm-run-btn');
+
+      if (!owner || !repo || !token) {
+        status.className = 'tm-status error';
+        status.textContent = '⚠ Vul alle velden in.';
+        return;
+      }
+
+      btn.disabled = true;
+      status.className = 'tm-status info';
+      status.innerHTML = '⏳ Workflow starten…';
+
+      try {
+        const res = await fetch(
+          `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/daily_scrape.yml/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/json',
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+            body: JSON.stringify({ ref: 'main' }),
+          }
+        );
+
+        if (res.status === 204) {
+          status.className = 'tm-status ok';
+          status.innerHTML =
+            '✅ Workflow gestart! Ga naar <strong>Actions</strong> in je repo om de voortgang te volgen. ' +
+            'Na ~2 min is de nieuwe <code>daily_houses.json</code> gecommit.';
+        } else {
+          const body = await res.json().catch(() => ({}));
+          status.className = 'tm-status error';
+          status.textContent = `❌ Fout ${res.status}: ${body.message || 'onbekende fout'}`;
+        }
+      } catch (e) {
+        status.className = 'tm-status error';
+        status.textContent = `❌ Netwerkfout: ${e.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // sluit modal bij klik buiten het venster
+    document.getElementById('test-modal-backdrop').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('open');
+    });
 
     // ── KICK OFF ───────────────────────────────────────────
     init();
