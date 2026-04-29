@@ -54,7 +54,7 @@ def parse_int(txt: str) -> int:
     return int(match.group(1)) if match else 0
 
 def parse_energy_label(txt: str) -> str:
-    # Zoekt naar labels A++++ t/m G in de tekst
+    # Zoekt naar labels A t/m G (inclusief +jes)
     match = re.search(r'[A-G][\+]*', txt, re.IGNORECASE)
     return match.group(0).upper() if match else "N/A"
 
@@ -63,53 +63,52 @@ def scrape() -> list[dict]:
     houses: list[dict] = []
     
     with sync_playwright() as p:
-        # Browser opstarten
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent=random.choice(USER_AGENTS),
-            viewport={"width": 1280, "height": 800}
+            viewport={"width": 1280, "height": 900}
         )
         page = context.new_page()
 
-        print(f"[{datetime.now():%H:%M:%S}] Starten met scrapen van {TARGET_URL}...")
+        print(f"[{datetime.now():%H:%M:%S}] Navigeren naar Funda...")
         
         try:
             page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
             random_delay(2, 4)
 
-            # Sluit cookie banner indien aanwezig
+            # Sluit cookie banner
             try:
                 page.locator('button:has-text("Accepteren")').first.click(timeout=3000)
             except:
                 pass
 
-            # Scroll naar beneden om lazy-loading afbeeldingen te triggeren
-            for _ in range(3):
-                page.mouse.wheel(0, 1500)
+            # Scrollen voor lazy-loading afbeeldingen
+            for _ in range(4):
+                page.mouse.wheel(0, 1200)
                 random_delay(0.5, 1.0)
 
-            # De listing containers uit index (7).html: div.@container.border-b
-            cards = page.locator('div.@container.border-b.pb-3')
+            # GEFIXTE SELECTOR: We gebruiken een attribute selector om de @ te omzeilen
+            cards = page.locator('div[class*="@container"][class*="border-b"]')
             count = min(NUM_HOUSES, cards.count())
-            print(f"Gevonden listings: {cards.count()}. We verwerken de eerste {count}.")
+            print(f"Gevonden listings: {cards.count()}. Verwerken: {count}")
 
             for i in range(count):
                 card = cards.nth(i)
                 try:
-                    # 1. Stad (uit de adresregel: "6711 AP Ede" -> "Ede")
-                    addr_el = card.locator('[data-testid="listingDetailsAddress"]').first
+                    # 1. Stad (Ede, Utrecht, etc.)
+                    # Funda HTML structuur: [data-testid="listingDetailsAddress"] bevat postcode + stad
                     city = "Onbekend"
+                    addr_el = card.locator('[data-testid="listingDetailsAddress"]').first
                     if addr_el.count() > 0:
                         addr_text = addr_el.inner_text().strip()
-                        # Neem het laatste woord van de adresregel als stad
-                        city = addr_text.split(' ')[-1]
+                        # De stad is meestal het laatste woord (bijv. "6711 AP Ede")
+                        city = addr_text.split('\n')[-1].split(' ')[-1].strip()
 
-                    # 2. Prijs (optioneel, maar vaak handig)
-                    price_el = card.locator('[data-testid="listing-price"]').first
+                    # 2. Prijs
+                    price_el = card.locator('div:has-text("€")').first
                     price = parse_price(price_el.inner_text()) if price_el.count() > 0 else 0
 
-                    # 3. Kenmerken: m2 en Slaapkamers
-                    # Deze staan in <li> elementen binnen de kaart
+                    # 3. Kenmerken (m2 en Slaapkamers)
                     m2 = 0
                     bedrooms = 0
                     specs = card.locator('li')
@@ -122,24 +121,22 @@ def scrape() -> list[dict]:
 
                     # 4. Energielabel
                     energy_label = "N/A"
-                    # Zoek naar een span die de tekst 'Label' bevat
-                    label_el = card.locator('span:has-text("Label")').first
+                    # Funda gebruikt vaak een badge met de letter
+                    label_el = card.locator('span[class*="bg-energy-label"], span:has-text("Label")').first
                     if label_el.count() > 0:
                         energy_label = parse_energy_label(label_el.inner_text())
 
-                    # 5. Afbeelding downloaden
+                    # 5. Afbeelding
                     img_el = card.locator('img').first
-                    img_url = ""
-                    if img_el.count() > 0:
-                        # Probeer srcset voor hogere resolutie, anders src
-                        img_url = img_el.get_attribute("srcset") or img_el.get_attribute("src") or ""
-                        if "," in img_url: # Pak de eerste url uit srcset
-                            img_url = img_url.split(",")[0].split(" ")[0].strip()
-                    
                     local_img_path = ""
-                    if img_url:
-                        img_filename = f"house_{i+1}.jpg"
-                        local_img_path = download_image(img_url, img_filename)
+                    if img_el.count() > 0:
+                        img_url = img_el.get_attribute("srcset") or img_el.get_attribute("src") or ""
+                        if "," in img_url:
+                            img_url = img_url.split(",")[0].split(" ")[0].strip()
+                        
+                        if img_url:
+                            img_filename = f"house_{i+1}.jpg"
+                            local_img_path = download_image(img_url, img_filename)
 
                     houses.append({
                         "id": i + 1,
@@ -150,7 +147,7 @@ def scrape() -> list[dict]:
                         "price": price,
                         "image": local_img_path
                     })
-                    print(f"  ✓ #{i+1} in {city}: {m2}m², {bedrooms} slp., Label {energy_label}")
+                    print(f"  ✓ #{i+1} | {city} | {m2}m² | Label {energy_label}")
 
                 except Exception as card_err:
                     print(f"  ✗ Fout bij listing {i+1}: {card_err}")
