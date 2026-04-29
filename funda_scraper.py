@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-# ── CONFIGURATIE ──────────────────────────────────────────────────────────────
+# ── CONFIG ────────────────────────────────────────────────────────────────────
 TARGET_URL = (
     "https://www.funda.nl/zoeken/koop?"
     "selected_area=%5B%22nederland%22%5D"
@@ -28,148 +28,173 @@ USER_AGENTS = [
 def random_delay(lo: float = 1.5, hi: float = 4.0):
     time.sleep(random.uniform(lo, hi))
 
+
 def download_image(url: str, filename: str) -> str:
     """Downloadt de afbeelding en geeft het lokale pad terug."""
-    if not url: return ""
     try:
-        resp = requests.get(url, timeout=10, headers={"User-Agent": random.choice(USER_AGENTS)})
-        if resp.status_code == 200:
+        headers = {"User-Agent": random.choice(USER_AGENTS), "Referer": "https://www.funda.nl/"}
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
             path = IMAGE_DIR / filename
-            path.write_bytes(resp.content)
+            path.write_bytes(response.content)
             return f"images/{filename}"
     except Exception as e:
-        print(f"Fout bij download image: {e}")
-    return ""
+        print(f"      ! Download mislukt: {e}")
+    return url
 
-def parse_price(txt: str) -> int:
-    nums = re.sub(r'[^\d]', '', txt)
-    return int(nums) if nums else 0
 
-def parse_m2(txt: str) -> int:
-    match = re.search(r'(\d+)\s*m²', txt)
-    return int(match.group(1)) if match else 0
+def parse_price(text: str) -> int | None:
+    digits = re.sub(r"[^\d]", "", text)
+    return int(digits) if digits else None
 
-def parse_int(txt: str) -> int:
-    match = re.search(r'(\d+)', txt)
-    return int(match.group(1)) if match else 0
 
-def parse_energy_label(txt: str) -> str:
-    # Zoekt naar labels A t/m G (inclusief +jes)
-    match = re.search(r'[A-G][\+]*', txt, re.IGNORECASE)
-    return match.group(0).upper() if match else "N/A"
+def parse_m2(text: str) -> int | None:
+    m = re.search(r"(\d+)", text)
+    return int(m.group(1)) if m else None
 
-# ── SCRAPER ───────────────────────────────────────────────────────────────────
+
+def parse_city(text: str) -> str:
+    """Haal stadsnaam op uit tekst als '6711 AP Ede' → 'Ede'."""
+    m = re.search(r"\d{4}\s*[A-Z]{2}\s+(.+)", text.strip())
+    return m.group(1).strip() if m else text.strip()
+
+
 def scrape() -> list[dict]:
     houses: list[dict] = []
-    
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+        ctx = browser.new_context(
             user_agent=random.choice(USER_AGENTS),
-            viewport={"width": 1280, "height": 900}
+            viewport={"width": 1366, "height": 768},
         )
-        page = context.new_page()
+        page = ctx.new_page()
 
-        print(f"[{datetime.now():%H:%M:%S}] Navigeren naar Funda...")
-        
+        print(f"[{datetime.now():%H:%M:%S}] Navigating to Funda …")
+        page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30_000)
+        random_delay(2, 4)
+
+        # Cookies accepteren
         try:
-            page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
-            random_delay(2, 4)
+            page.locator('button:has-text("Accepteren")').first.click(timeout=3000)
+            random_delay(1, 2)
+        except Exception:
+            pass
 
-            # Sluit cookie banner
+        # Scrollen voor lazy loading
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+        random_delay(1, 2)
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        random_delay(2, 3)
+
+        # ── Kaarten selecteren ────────────────────────────────────────────────
+        # De kaarten hebben class "@container border-b pb-3"
+        # We gebruiken een attribute-contains selector (@ hoeft niet ge-escaped in de string-waarde)
+        cards = page.locator('div[class*="@container"][class*="border-b"]')
+        count = min(NUM_HOUSES, cards.count())
+        print(f"[{datetime.now():%H:%M:%S}] {cards.count()} kaarten gevonden, verwerk er {count} …")
+
+        for i in range(count):
+            card = cards.nth(i)
             try:
-                page.locator('button:has-text("Accepteren")').first.click(timeout=3000)
-            except:
-                pass
+                # ── Afbeelding ────────────────────────────────────────────────
+                img_el = card.locator("img").first
+                remote_url = ""
+                if img_el.count() > 0:
+                    srcset = img_el.get_attribute("srcset") or ""
+                    if srcset:
+                        # Neem de laatste (hoogste resolutie) entry uit de srcset
+                        parts = [p.strip() for p in srcset.split(",")]
+                        remote_url = parts[-1].split(" ")[0].strip()
+                    if not remote_url:
+                        remote_url = img_el.get_attribute("src") or ""
 
-            # Scrollen voor lazy-loading afbeeldingen
-            for _ in range(4):
-                page.mouse.wheel(0, 1200)
-                random_delay(0.5, 1.0)
+                local_img_path = remote_url
+                if remote_url and remote_url.startswith("http"):
+                    img_name = f"house_{i+1}.jpg"
+                    print(f"  → Downloading image for house #{i+1}...")
+                    local_img_path = download_image(remote_url, img_name)
 
-            # GEFIXTE SELECTOR: We gebruiken een attribute selector om de @ te omzeilen
-            cards = page.locator('div[class*="@container"][class*="border-b"]')
-            count = min(NUM_HOUSES, cards.count())
-            print(f"Gevonden listings: {cards.count()}. Verwerken: {count}")
+                # ── Adres & Stad ──────────────────────────────────────────────
+                # <a data-testid="listingDetailsAddress"> (let op: geen koppelteken!)
+                addr_link = card.locator('[data-testid="listingDetailsAddress"]').first
+                street = ""
+                city = "Onbekend"
+                if addr_link.count() > 0:
+                    # Straat: eerste <span class="truncate">
+                    street_el = addr_link.locator("span.truncate").first
+                    if street_el.count() > 0:
+                        street = street_el.inner_text().strip()
+                    # Stad: div met class "text-neutral-80" → bevat "1234 AB Plaatsnaam"
+                    city_el = addr_link.locator('div[class*="text-neutral-80"]').first
+                    if city_el.count() > 0:
+                        city = parse_city(city_el.inner_text())
 
-            for i in range(count):
-                card = cards.nth(i)
-                try:
-                    # 1. Stad (Ede, Utrecht, etc.)
-                    # Funda HTML structuur: [data-testid="listingDetailsAddress"] bevat postcode + stad
-                    city = "Onbekend"
-                    addr_el = card.locator('[data-testid="listingDetailsAddress"]').first
-                    if addr_el.count() > 0:
-                        addr_text = addr_el.inner_text().strip()
-                        # De stad is meestal het laatste woord (bijv. "6711 AP Ede")
-                        city = addr_text.split('\n')[-1].split(' ')[-1].strip()
+                # ── Prijs ─────────────────────────────────────────────────────
+                # De prijs staat in een div.truncate die een '€' bevat
+                price = 0
+                price_candidates = card.locator("div.truncate")
+                for j in range(price_candidates.count()):
+                    txt = price_candidates.nth(j).inner_text()
+                    if "€" in txt:
+                        price = parse_price(txt) or 0
+                        break
 
-                    # 2. Prijs
-                    price_el = card.locator('div:has-text("€")').first
-                    price = parse_price(price_el.inner_text()) if price_el.count() > 0 else 0
+                # ── Features (m², slaapkamers, energielabel) ──────────────────
+                # Ze staan als <li> elementen in een <ul>:
+                # bijv. ['31 m²', '1', 'A']  of  ['113 m²', '152 m²', '5', 'B']
+                m2 = None
+                bedrooms = None
+                energy_label = None
+                feature_items = card.locator("ul li")
+                feature_texts = []
+                for j in range(feature_items.count()):
+                    feature_texts.append(feature_items.nth(j).inner_text().strip())
 
-                    # 3. Kenmerken (m2 en Slaapkamers)
-                    m2 = 0
-                    bedrooms = 0
-                    specs = card.locator('li')
-                    for j in range(specs.count()):
-                        spec_text = specs.nth(j).inner_text().lower()
-                        if "m²" in spec_text:
-                            m2 = parse_m2(spec_text)
-                        elif "kamer" in spec_text:
-                            bedrooms = parse_int(spec_text)
+                # m²: eerste feature die 'm²' bevat (woonoppervlak, niet perceeloppervlak)
+                for ft in feature_texts:
+                    if "m²" in ft or "m2" in ft.lower():
+                        m2 = parse_m2(ft)
+                        break
 
-                    # 4. Energielabel
-                    energy_label = "N/A"
-                    # Funda gebruikt vaak een badge met de letter
-                    label_el = card.locator('span[class*="bg-energy-label"], span:has-text("Label")').first
-                    if label_el.count() > 0:
-                        energy_label = parse_energy_label(label_el.inner_text())
+                # slaapkamers: eerste feature die puur een getal is
+                for ft in feature_texts:
+                    if re.match(r"^\d+$", ft):
+                        bedrooms = int(ft)
+                        break
 
-                    # 5. Afbeelding
-                    img_el = card.locator('img').first
-                    local_img_path = ""
-                    if img_el.count() > 0:
-                        img_url = img_el.get_attribute("srcset") or img_el.get_attribute("src") or ""
-                        if "," in img_url:
-                            img_url = img_url.split(",")[0].split(" ")[0].strip()
-                        
-                        if img_url:
-                            img_filename = f"house_{i+1}.jpg"
-                            local_img_path = download_image(img_url, img_filename)
+                # energielabel: laatste feature als het een geldig label is (A–G met optionele plustekens)
+                if feature_texts:
+                    last = feature_texts[-1]
+                    if re.match(r"^[A-G]\+*$", last):
+                        energy_label = last
 
-                    houses.append({
-                        "id": i + 1,
-                        "city": city,
-                        "m2": m2,
-                        "bedrooms": bedrooms,
-                        "energy_label": energy_label,
-                        "price": price,
-                        "image": local_img_path
-                    })
-                    print(f"  ✓ #{i+1} | {city} | {m2}m² | Label {energy_label}")
+                houses.append({
+                    "id": i + 1,
+                    "image": local_img_path,
+                    "street": street,
+                    "city": city,
+                    "price": price,
+                    "m2": m2,
+                    "bedrooms": bedrooms,
+                    "energy_label": energy_label,
+                })
+                print(f"  ✓ #{i+1} {street}, {city} | €{price:,} | {m2}m² | {bedrooms}k | {energy_label}")
 
-                except Exception as card_err:
-                    print(f"  ✗ Fout bij listing {i+1}: {card_err}")
+            except Exception as e:
+                print(f"  ✗ Fout bij huis #{i+1}: {e}")
 
-        except Exception as e:
-            print(f"KRITIEKE FOUT: {e}")
-        finally:
-            browser.close()
-            
+        browser.close()
     return houses
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+
 def main():
-    print("--- START FUNDA SCRAPER ---")
-    results = scrape()
-    
-    if results:
-        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
-        print(f"\n✅ Succes! {len(results)} huizen opgeslagen in {OUTPUT_FILE.name}")
+    houses = scrape()
+    if len(houses) >= 5:
+        OUTPUT_FILE.write_text(json.dumps(houses, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"✅ Klaar! {len(houses)} huizen opgeslagen in {OUTPUT_FILE}")
     else:
-        print("\n⚠️ Geen resultaten gevonden.")
+        print(f"⚠️  Slechts {len(houses)} huizen gevonden — JSON niet overschreven.")
+
 
 if __name__ == "__main__":
     main()
